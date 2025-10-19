@@ -111,8 +111,19 @@
 
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
+    const auth = firebase.auth();
     const statusEl = document.getElementById('status');
-    statusEl.textContent = 'Firebase prêt ✅';
+
+    // Auth anonyme obligatoire si tes règles exigent auth != null
+    function ensureAuth(){
+      return new Promise((resolve)=>{
+        if (auth.currentUser) { statusEl.textContent = 'Connecté ✅'; return resolve(auth.currentUser); }
+        auth.onAuthStateChanged((u)=>{ if(u){ statusEl.textContent = 'Connecté ✅'; resolve(u); } });
+        // tente la connexion anonyme
+        auth.signInAnonymously().catch((e)=>{ console.warn('Auth anonyme échouée', e); statusEl.textContent = 'Hors ligne ❌ ('+ (e?.code||'auth') +')'; resolve(null); });
+      });
+    }
+    ensureAuth().then(()=> statusEl.textContent = statusEl.textContent || 'Connecté ✅');
 
     // ------ Jeu ------
     const PHRASES = [
@@ -167,6 +178,18 @@
       const acc = Math.round(typed / Math.max(1, (typed+errors)) * 100);
       wpmEl.textContent = wpm; accEl.textContent = acc + '%';
       const payload = { name: playerName || 'Anonyme', wpm, acc, errors, date: Date.now() };
+      localStorage.setItem('lastScore', JSON.stringify(payload));
+      // pousse seulement après auth
+      ensureAuth().then(()=> db.ref('typing-scores').push(payload))
+        .then(()=>{ loadScores(); statusEl.textContent = 'Score envoyé ✅'; })
+        .catch((e)=>{ console.error(e); statusEl.textContent = 'Envoi impossible ❌ ' + (e?.code||''); });
+    };
+      localStorage.setItem('lastScore', JSON.stringify(payload));
+      // pousse seulement après auth
+      ensureAuth().then(()=> db.ref('typing-scores').push(payload))
+        .then(()=>{ loadScores(); statusEl.textContent = 'Score envoyé ✅'; })
+        .catch((e)=>{ console.error(e); statusEl.textContent = 'Envoi impossible ❌ ' + (e?.code||''); });
+    };
       db.ref('typing-scores').push(payload).then(()=> loadScores());
       localStorage.setItem('lastScore', JSON.stringify(payload));
     }
@@ -182,9 +205,20 @@
     }
 
     async function loadScores(){
-      const snap = await db.ref('typing-scores').orderByChild('wpm').limitToLast(10).get();
-      leaderboard.innerHTML='';
-      if(!snap.exists()) { leaderboard.innerHTML = '<li class="text-slate-300">Aucun score pour le moment.</li>'; return; }
+      try{
+        const snap = await db.ref('typing-scores').orderByChild('wpm').limitToLast(10).get();
+        leaderboard.innerHTML='';
+        if(!snap.exists()) { leaderboard.innerHTML = '<li class="text-slate-300">Aucun score pour le moment.</li>'; return; }
+        const arr=[]; snap.forEach(s=>arr.push(s.val()));
+        arr.sort((a,b)=> b.wpm - a.wpm || b.acc - a.acc || a.errors - b.errors);
+        arr.forEach((s,i)=>{ const name = (s.name||'Anonyme').toString().slice(0,28); const li=document.createElement('li'); li.className='flex justify-between'; li.innerHTML=`<span>${i+1}. ${name}</span><span>${s.wpm} WPM <span class='text-slate-400'>(${s.acc}%)</span></span>`; leaderboard.appendChild(li); });
+      } catch(e){ console.error(e); statusEl.textContent = 'Lecture classement impossible ❌ ' + (e?.code||''); }
+    }
+        const arr=[]; snap.forEach(s=>arr.push(s.val()));
+        arr.sort((a,b)=> b.wpm - a.wpm || b.acc - a.acc || a.errors - b.errors);
+        arr.forEach((s,i)=>{ const name = (s.name||'Anonyme').toString().slice(0,28); const li=document.createElement('li'); li.className='flex justify-between'; li.innerHTML=`<span>${i+1}. ${name}</span><span>${s.wpm} WPM <span class='text-slate-400'>(${s.acc}%)</span></span>`; leaderboard.appendChild(li); });
+      } catch(e){ console.error(e); statusEl.textContent = 'Lecture classement impossible ❌ ' + (e?.code||''); }
+    }
       const arr=[]; snap.forEach(s=>arr.push(s.val()));
       arr.sort((a,b)=> b.wpm - a.wpm || b.acc - a.acc || a.errors - b.errors);
       arr.forEach((s,i)=>{ const name = (s.name||'Anonyme').toString().slice(0,28); const li=document.createElement('li'); li.className='flex justify-between'; li.innerHTML=`<span>${i+1}. ${name}</span><span>${s.wpm} WPM <span class='text-slate-400'>(${s.acc}%)</span></span>`; leaderboard.appendChild(li); });
