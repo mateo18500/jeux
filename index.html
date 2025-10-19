@@ -4,199 +4,199 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>TypeSprint Médico — Arcade</title>
+  <!-- Tailwind CDN (ok pour tests; pour prod: build Tailwind) -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
   <style>
-    :root {
-      --bg: #0a0b12; --ink:#e6f1ff; --muted:#8ea2c6;
-      --neon1:#00e5ff; --neon2:#6affc1; --danger:#ff5d7a;
-    }
-    body {
-      font-family: 'Inter', system-ui;
-      color: var(--ink);
-      background: radial-gradient(1000px 800px at 50% -10%, #14203a, transparent 70%), var(--bg);
-      overflow-x: hidden;
-    }
-    .game-title { font-family: 'Chakra Petch', monospace; }
-    .glass { background: rgba(255,255,255,0.05); backdrop-filter: blur(8px); border:1px solid rgba(255,255,255,0.08);}
-    .btn-primary { background: linear-gradient(90deg,var(--neon1),var(--neon2)); color:#001016; font-weight:800; }
-    .neon { text-shadow:0 0 12px var(--neon1),0 0 20px var(--neon2); }
-    .shake { animation: shake .2s; }
-    @keyframes shake {
-      0%{transform:translateX(0)}25%{transform:translateX(-4px)}50%{transform:translateX(4px)}75%{transform:translateX(-3px)}100%{transform:translateX(0)}
-    }
+    :root { --bg:#0a0f1c; --ink:#e6f1ff; --muted:#8ea2c6; --neon1:#00e5ff; --neon2:#6affc1; --danger:#ff5d7a; }
+    body { font-family:'Inter',system-ui; color:var(--ink); background: radial-gradient(1200px 800px at 30% -10%, #14243f, transparent 65%), radial-gradient(1200px 800px at 120% 20%, #0a1b2b, transparent 60%), var(--bg); overflow-x:hidden; }
+    .game-title{ font-family:'Chakra Petch',monospace; text-shadow:0 0 18px rgba(0,229,255,.35); }
+    .glass{ background: rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.08); backdrop-filter: blur(8px); }
+    .btn{ border:1px solid rgba(255,255,255,.12); transition: transform .06s ease, box-shadow .15s ease; }
+    .btn:hover{ transform: translateY(-1px); box-shadow:0 6px 18px rgba(0,0,0,.35), 0 0 14px rgba(0,229,255,.25); }
+    .btn-primary{ background: linear-gradient(90deg,var(--neon1),var(--neon2)); color:#001016; font-weight:800; }
+    .neon{ text-shadow:0 0 10px var(--neon1),0 0 22px var(--neon2); }
+    .target-char{ position:relative; }
+    .target-char::after{ content:""; position:absolute; left:0; right:0; bottom:-4px; height:4px; background:linear-gradient(90deg,var(--neon1),var(--neon2)); border-radius:9999px; animation:pulse 1.1s ease-in-out infinite; }
+    @keyframes pulse{ 0%{opacity:.35}50%{opacity:1}100%{opacity:.35} }
+    .shake{ animation: shake .18s linear; }
+    @keyframes shake{ 0%{transform:translateX(0)}25%{transform:translateX(-4px)}50%{transform:translateX(4px)}75%{transform:translateX(-3px)}100%{transform:translateX(0)} }
   </style>
+  
+  <!-- Firebase v9 compat (fonctionne en local/file:// et sans ES Modules) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
 </head>
 <body class="p-6">
-  <h1 class="game-title text-4xl neon mb-4">TypeSprint Médico 🏥</h1>
+  <h1 class="game-title text-4xl mb-4 flex items-center gap-2">TypeSprint Médico <span class="text-cyan-300">🏥</span></h1>
 
-  <div class="glass p-4 rounded-xl max-w-xl">
-    <label class="block mb-2">Durée</label>
-    <select id="duration" class="bg-transparent border p-2 rounded w-full mb-3">
-      <option value="30">30 s</option>
-      <option value="60" selected>60 s</option>
-      <option value="120">120 s</option>
-    </select>
+  <div class="grid gap-6 lg:grid-cols-[1fr,360px]">
+    <!-- Colonne principale -->
+    <main class="space-y-6">
+      <section class="glass p-4 rounded-xl max-w-2xl">
+        <label class="block mb-2">Durée</label>
+        <select id="duration" class="bg-transparent border p-2 rounded w-full mb-3">
+          <option value="30">30 s</option>
+          <option value="60" selected>60 s</option>
+          <option value="120">120 s</option>
+        </select>
+        <div class="flex gap-2">
+          <button id="startBtn" class="btn btn-primary px-4 py-2 rounded-lg">DÉMARRER</button>
+          <button id="resetBtn" class="btn px-4 py-2 rounded-lg">Réinitialiser</button>
+        </div>
+      </section>
 
-    <button id="startBtn" class="btn-primary px-4 py-2 rounded-lg">DÉMARRER</button>
-    <button id="resetBtn" class="ml-2 border px-3 py-2 rounded-lg">Réinitialiser</button>
-  </div>
+      <section class="glass p-4 rounded-xl max-w-2xl">
+        <div class="flex flex-wrap gap-6 text-sm">
+          <div>⏱ Temps : <span id="time">60</span>s</div>
+          <div>💬 WPM : <span id="wpm">0</span></div>
+          <div>🎯 Précision : <span id="acc">100%</span></div>
+          <div>❌ Erreurs : <span id="errs">0</span></div>
+        </div>
+      </section>
 
-  <div class="glass p-4 mt-4 rounded-xl max-w-xl">
-    <div class="flex justify-between">
-      <div>⏱ Temps : <span id="time">60</span>s</div>
-      <div>💬 WPM : <span id="wpm">0</span></div>
-      <div>🎯 Précision : <span id="acc">100%</span></div>
-    </div>
-  </div>
+      <section class="glass p-4 rounded-xl max-w-2xl">
+        <p id="textZone" class="text-lg leading-relaxed min-h-[72px]"></p>
+        <input id="typing" type="text" placeholder="Tape ici..." class="mt-3 w-full p-2 bg-transparent border rounded" disabled>
+      </section>
+    </main>
 
-  <div class="glass p-4 mt-4 rounded-xl max-w-xl">
-    <p id="textZone" class="text-lg leading-relaxed"></p>
-    <input id="typing" type="text" placeholder="Tape ici..." class="mt-3 w-full p-2 bg-transparent border rounded" disabled>
-  </div>
-
-  <div class="glass p-4 mt-4 rounded-xl max-w-xs">
-    <h2 class="game-title mb-2 text-xl">🏆 Classement</h2>
-    <ol id="leaderboard" class="text-sm space-y-1"></ol>
+    <!-- Sidebar classement -->
+    <aside class="glass p-4 rounded-xl h-fit">
+      <h2 class="text-xl mb-2">🏆 Classement (Top 10)</h2>
+      <ol id="leaderboard" class="text-sm space-y-1"></ol>
+      <button id="copyScore" class="btn mt-3 px-3 py-2 rounded">Copier mon dernier score</button>
+      <div id="status" class="text-xs text-slate-300 mt-2"></div>
+    </aside>
   </div>
 
   <!-- Modal nom joueur -->
   <div id="nameModal" class="fixed inset-0 bg-black/70 hidden items-center justify-center">
-    <div class="glass p-6 rounded-xl text-center">
-      <h2 class="game-title text-2xl mb-4">Nouvelle Partie</h2>
-      <p class="mb-3">Entre ton nom :</p>
+    <div class="glass p-6 rounded-xl text-center w-full max-w-md">
+      <h2 class="text-2xl mb-3">Nouvelle partie</h2>
+      <p class="mb-3">Entre ton <b>nom</b> pour le classement :</p>
       <input id="playerName" type="text" class="p-2 w-full border rounded mb-3" placeholder="Ex: Matéo" />
-      <button id="saveName" class="btn-primary px-4 py-2 rounded-lg">Commencer</button>
+      <button id="saveName" class="btn btn-primary px-4 py-2 rounded-lg">Commencer</button>
+      <p id="nameError" class="text-[var(--danger)] text-sm mt-2 hidden">Le nom est obligatoire.</p>
     </div>
   </div>
 
-  <!-- Firebase + Jeu -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
-    import { getDatabase, ref, push, query, orderByChild, limitToLast, get } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-database.js";
-    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
-
+  <script>
+    // ------ Firebase init (compat, stable en local) ------
     const firebaseConfig = {
       apiKey: "AIzaSyBDdqP2oe9pIqqwNLwHTotEgje8pkr09Xk",
       authDomain: "jeux-1f6e3.firebaseapp.com",
       databaseURL: "https://jeux-1f6e3-default-rtdb.firebaseio.com",
       projectId: "jeux-1f6e3",
-      storageBucket: "https://jeux-1f6e3-default-rtdb.europe-west1.firebasedatabase.app",
+      // storageBucket peut rester optionnel ici; si tu veux, mets le bucket sans https:
+      storageBucket: "jeux-1f6e3.appspot.com",
       messagingSenderId: "877311925161",
       appId: "1:877311925161:web:dd03142f7b0b19fbca02b8",
       measurementId: "G-LEBLSSDWSD"
     };
 
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
-    const auth = getAuth(app);
-    signInAnonymously(auth);
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const statusEl = document.getElementById('status');
+    statusEl.textContent = 'Firebase prêt ✅';
 
+    // ------ Jeu ------
     const PHRASES = [
       "Restez en ligne, l'équipe est en route vers vous.",
       "Pouvez-vous me donner l'adresse exacte de l'urgence ?",
       "La victime respire-t-elle normalement ?",
       "Depuis quand la douleur thoracique a-t-elle commencé ?",
-      "Avez-vous observé une perte de connaissance ?"
+      "Avez-vous observé une perte de connaissance ?",
+      "Placez la personne en position latérale de sécurité si elle respire.",
+      "Commencez les compressions : trente compressions puis deux insufflations.",
+      "Surveillez la saturation si un oxymètre est disponible."
     ];
 
-    const startBtn = document.getElementById("startBtn");
-    const resetBtn = document.getElementById("resetBtn");
-    const durationSel = document.getElementById("duration");
-    const typing = document.getElementById("typing");
-    const textZone = document.getElementById("textZone");
-    const timeEl = document.getElementById("time");
-    const wpmEl = document.getElementById("wpm");
-    const accEl = document.getElementById("acc");
-    const leaderboard = document.getElementById("leaderboard");
-    const modal = document.getElementById("nameModal");
-    const playerNameInput = document.getElementById("playerName");
-    const saveName = document.getElementById("saveName");
+    const startBtn = document.getElementById('startBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const durationSel = document.getElementById('duration');
+    const typing = document.getElementById('typing');
+    const textZone = document.getElementById('textZone');
+    const timeEl = document.getElementById('time');
+    const wpmEl = document.getElementById('wpm');
+    const accEl = document.getElementById('acc');
+    const errsEl = document.getElementById('errs');
+    const leaderboard = document.getElementById('leaderboard');
+    const copyScore = document.getElementById('copyScore');
 
-    let playerName = "", running = false, timer, remaining, text="", index=0, typed=0, errors=0, duration=60;
+    const modal = document.getElementById('nameModal');
+    const playerNameInput = document.getElementById('playerName');
+    const saveName = document.getElementById('saveName');
+    const nameError = document.getElementById('nameError');
 
-    function randomPhrase() {
-      return PHRASES[Math.floor(Math.random() * PHRASES.length)];
-    }
+    let playerName = localStorage.getItem('playerName') || '';
+    let running=false, tmr=null, remaining=60, duration=60, text='', index=0, typed=0, errors=0, startedAt=0;
 
-    function renderText() {
-      const done = text.slice(0, index);
-      const current = text[index] || "";
-      const rest = text.slice(index + 1);
-      textZone.innerHTML = `<span class='text-gray-400'>${done}</span><span class='neon font-bold'>${current}</span>${rest}`;
-    }
+    function randomPhrase(){ return PHRASES[Math.floor(Math.random()*PHRASES.length)]; }
+    function renderText(){ const done=text.slice(0,index); const cur=text[index]||''; const rest=text.slice(index+1); textZone.innerHTML = `<span class='text-slate-400'>${done}</span><span class='target-char font-semibold'>${cur}</span>${rest}`; }
+    function openModal(){ modal.classList.remove('hidden'); modal.classList.add('flex'); playerNameInput.value = playerName; playerNameInput.focus(); }
+    function closeModal(){ modal.classList.add('hidden'); modal.classList.remove('flex'); }
 
-    function startGame() {
-      duration = parseInt(durationSel.value);
-      text = randomPhrase();
-      index = 0; typed = 0; errors = 0;
+    function startGame(){
+      duration = parseInt(durationSel.value,10); remaining = duration;
+      text = randomPhrase(); index=0; typed=0; errors=0; startedAt=performance.now();
       renderText();
-      typing.value = "";
-      typing.disabled = false;
-      typing.focus();
-      running = true;
-      remaining = duration;
-      timeEl.textContent = remaining;
-      clearInterval(timer);
-      timer = setInterval(() => {
-        remaining--;
-        timeEl.textContent = remaining;
-        if (remaining <= 0) finish();
-      }, 1000);
+      typing.value=''; typing.disabled=false; typing.focus(); running=true; timeEl.textContent = remaining;
+      clearInterval(tmr);
+      tmr=setInterval(()=>{ remaining--; timeEl.textContent=remaining; if(remaining<=0) finish(); }, 1000);
     }
 
-    function finish() {
-      running = false;
-      clearInterval(timer);
-      typing.disabled = true;
-      const minutes = (duration - remaining) / 60;
-      const wpm = Math.round((typed / 5) / minutes);
-      const acc = Math.round((typed / (typed + errors)) * 100) || 0;
-      wpmEl.textContent = wpm;
-      accEl.textContent = acc + "%";
-      push(ref(db, "typing-scores"), { name: playerName, wpm, acc });
-      loadScores();
+    function finish(){
+      running=false; clearInterval(tmr); typing.disabled=true;
+      const minutes = Math.max(1/60,(duration-remaining)/60);
+      const wpm = Math.round((typed/5)/minutes);
+      const acc = Math.round(typed / Math.max(1, (typed+errors)) * 100);
+      wpmEl.textContent = wpm; accEl.textContent = acc + '%';
+      // Enregistrer en base
+      const payload = { name: playerName || 'Anonyme', wpm, acc, errors, date: Date.now() };
+      db.ref('typing-scores').push(payload).then(()=> loadScores());
+      // Sauvegarde locale pour partage
+      localStorage.setItem('lastScore', JSON.stringify(payload));
     }
 
-    function handleInput(e) {
-      if (!running) return;
-      const val = e.target.value;
-      const char = val.slice(-1);
-      if (char === text[index]) {
-        index++; typed++; renderText();
-      } else { errors++; textZone.classList.add("shake"); setTimeout(() => textZone.classList.remove("shake"), 200); }
-      if (index >= text.length) finish();
+    function handleInput(e){
+      if(!running) return;
+      const val=e.target.value; const ch=val.slice(-1);
+      if(ch === text[index]){ index++; typed++; renderText(); }
+      else { errors++; textZone.classList.add('shake'); setTimeout(()=> textZone.classList.remove('shake'), 160); }
+      if(index>=text.length) finish();
+      // live stats
+      const elapsed = Math.max(1,(performance.now()-startedAt)/1000); const wpm = Math.round((typed/5)/(elapsed/60)); const acc = Math.round(typed/Math.max(1,typed+errors)*100);
+      wpmEl.textContent = wpm; accEl.textContent = acc + '%'; errsEl.textContent = errors;
     }
 
-    async function loadScores() {
-      const q = query(ref(db, "typing-scores"), orderByChild("wpm"), limitToLast(10));
-      const snap = await get(q);
-      leaderboard.innerHTML = "";
-      if (!snap.exists()) return;
-      const arr = [];
-      snap.forEach(s => arr.push(s.val()));
-      arr.sort((a, b) => b.wpm - a.wpm);
-      arr.forEach((s, i) => {
-        leaderboard.innerHTML += `<li>${i + 1}. ${s.name} — ${s.wpm} WPM (${s.acc}%)</li>`;
-      });
+    async function loadScores(){
+      const snap = await db.ref('typing-scores').orderByChild('wpm').limitToLast(10).get();
+      leaderboard.innerHTML='';
+      if(!snap.exists()) { leaderboard.innerHTML = '<li class="text-slate-400">Aucun score pour le moment.</li>'; return; }
+      const arr=[]; snap.forEach(s=>arr.push(s.val()));
+      arr.sort((a,b)=> b.wpm - a.wpm || b.acc - a.acc || a.errors - b.errors);
+      arr.forEach((s,i)=>{ const name = (s.name||'Anonyme').toString().slice(0,24); const line = `${i+1}. ${name} — ${s.wpm} WPM (${s.acc}%)`; const li=document.createElement('li'); li.textContent=line; leaderboard.appendChild(li); });
     }
 
-    startBtn.onclick = () => {
-      modal.classList.remove("hidden");
-      modal.classList.add("flex");
-    };
+    // --- Events ---
+    startBtn.addEventListener('click', ()=>{ openModal(); });
+    saveName.addEventListener('click', ()=>{ const n = playerNameInput.value.trim(); if(!n){ nameError.classList.remove('hidden'); return; } nameError.classList.add('hidden'); playerName=n; localStorage.setItem('playerName', n); closeModal(); startGame(); });
+    playerNameInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') saveName.click(); });
 
-    saveName.onclick = () => {
-      playerName = playerNameInput.value.trim();
-      if (!playerName) return;
-      modal.classList.add("hidden");
-      modal.classList.remove("flex");
-      startGame();
-    };
+    resetBtn.addEventListener('click', ()=>{ location.reload(); });
+    typing.addEventListener('input', handleInput);
 
-    resetBtn.onclick = () => location.reload();
-    typing.oninput = handleInput;
+    copyScore.addEventListener('click', ()=>{
+      const raw = localStorage.getItem('lastScore');
+      if(!raw){ navigator.clipboard.writeText('Pas de score encore.'); return; }
+      const s = JSON.parse(raw);
+      const txt = `Score — ${s.name} • ${s.wpm} WPM • ${s.acc}% • erreurs ${s.errors}`;
+      navigator.clipboard.writeText(txt);
+    });
 
+    // Auto-load leaderboard
     loadScores();
   </script>
 </body>
